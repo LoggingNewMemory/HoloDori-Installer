@@ -74,6 +74,7 @@ fun MainScreen(viewModel: AppViewModel) {
     val isInstalling by viewModel.isInstalling.collectAsState()
     val useRoot by viewModel.useRoot.collectAsState()
     val shizukuAvailable by viewModel.shizukuAvailable.collectAsState()
+    val rootAvailable by viewModel.rootAvailable.collectAsState()
 
     val installedVersion by viewModel.installedVersion.collectAsState()
     val latestVersion by viewModel.latestVersion.collectAsState()
@@ -131,6 +132,7 @@ fun MainScreen(viewModel: AppViewModel) {
             InstallMethodCard(
                 useRoot = useRoot,
                 shizukuAvailable = shizukuAvailable,
+                rootAvailable = rootAvailable,
                 onSelectShizuku = { viewModel.setUseRoot(false) },
                 onSelectRoot = { viewModel.setUseRoot(true) },
             )
@@ -185,6 +187,7 @@ fun MainScreen(viewModel: AppViewModel) {
 fun InstallMethodCard(
     useRoot: Boolean,
     shizukuAvailable: Boolean,
+    rootAvailable: Boolean,
     onSelectShizuku: () -> Unit,
     onSelectRoot: () -> Unit,
 ) {
@@ -253,6 +256,28 @@ fun InstallMethodCard(
                     Spacer(Modifier.width(6.dp))
                     Text(
                         if (shizukuAvailable) "Shizuku is running" else "Shizuku is not running",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+
+            // Root status — only shown when Root is selected
+            AnimatedVisibility(visible = useRoot) {
+                Row(
+                    modifier = Modifier.padding(top = 10.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Icon(
+                        if (rootAvailable) Icons.Filled.CheckCircle else Icons.Filled.Cancel,
+                        contentDescription = null,
+                        modifier = Modifier.size(14.dp),
+                        tint = if (rootAvailable) MaterialTheme.colorScheme.primary
+                               else MaterialTheme.colorScheme.error,
+                    )
+                    Spacer(Modifier.width(6.dp))
+                    Text(
+                        if (rootAvailable) "Root access granted" else "Root not available",
                         style = MaterialTheme.typography.labelMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
