@@ -1,8 +1,8 @@
 package com.kanagawa.yamada.holodoriinstaller
 
+import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
-import android.view.WindowManager
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
@@ -11,6 +11,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -23,7 +24,11 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.kanagawa.yamada.holodoriinstaller.ui.theme.HoloDoriInstallerTheme
@@ -35,9 +40,6 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         enableEdgeToEdge()
         super.onCreate(savedInstanceState)
-
-        // Keep screen on while the app is visible
-        window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
 
         setContent {
             HoloDoriInstallerTheme {
@@ -73,6 +75,18 @@ fun MainScreen(viewModel: AppViewModel) {
     val useRoot by viewModel.useRoot.collectAsState()
     val shizukuAvailable by viewModel.shizukuAvailable.collectAsState()
 
+    val installedVersion by viewModel.installedVersion.collectAsState()
+    val latestVersion by viewModel.latestVersion.collectAsState()
+    val isCheckingVersion by viewModel.isCheckingVersion.collectAsState()
+
+    // Keep screen on only while downloading or installing
+    val keepOn = downloadState == DownloadState.DOWNLOADING || isInstalling
+    val view = LocalView.current
+    DisposableEffect(keepOn) {
+        view.keepScreenOn = keepOn
+        onDispose { view.keepScreenOn = false }
+    }
+
     val filePickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent()
     ) { uri: Uri? ->
@@ -101,11 +115,6 @@ fun MainScreen(viewModel: AppViewModel) {
                     containerColor = MaterialTheme.colorScheme.surface,
                     scrolledContainerColor = MaterialTheme.colorScheme.surfaceColorAtElevation(3.dp),
                 ),
-                actions = {
-                    IconButton(onClick = { viewModel.checkShizuku() }) {
-                        Icon(Icons.Outlined.Refresh, contentDescription = "Refresh Shizuku status")
-                    }
-                }
             )
         }
     ) { innerPadding ->
@@ -134,6 +143,10 @@ fun MainScreen(viewModel: AppViewModel) {
                 totalBytes = totalBytes,
                 errorMessage = errorMessage,
                 isInstalling = isInstalling,
+                installedVersion = installedVersion,
+                latestVersion = latestVersion,
+                isCheckingVersion = isCheckingVersion,
+                onRefreshVersion = { viewModel.refreshVersionInfo() },
                 onDownload = { viewModel.startApkPureDownload() },
                 onPause = { viewModel.pauseDownload() },
                 onResume = { viewModel.resumeDownload() },
@@ -158,6 +171,9 @@ fun MainScreen(viewModel: AppViewModel) {
                     isInstalling = isInstalling,
                 )
             }
+
+            // ── Footer Credit ──
+            FooterCredit()
         }
     }
 }
@@ -256,6 +272,10 @@ fun DownloadCard(
     totalBytes: Long,
     errorMessage: String,
     isInstalling: Boolean,
+    installedVersion: String?,
+    latestVersion: String?,
+    isCheckingVersion: Boolean,
+    onRefreshVersion: () -> Unit,
     onDownload: () -> Unit,
     onPause: () -> Unit,
     onResume: () -> Unit,
@@ -263,10 +283,13 @@ fun DownloadCard(
     onInstall: () -> Unit,
 ) {
     ElevatedCard(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .animateContentSize(animationSpec = spring(stiffness = Spring.StiffnessMediumLow)),
         shape = RoundedCornerShape(16.dp),
     ) {
         Column(modifier = Modifier.padding(20.dp)) {
+            // Header
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(
                     Icons.Filled.CloudDownload,
@@ -275,19 +298,23 @@ fun DownloadCard(
                     modifier = Modifier.size(24.dp),
                 )
                 Spacer(Modifier.width(12.dp))
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        "Download from APKPure",
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.SemiBold,
-                    )
-                    Text(
-                        "Always fetches the latest version",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
+                Text(
+                    "Download from APKPure",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    modifier = Modifier.weight(1f),
+                )
             }
+
+            Spacer(Modifier.height(12.dp))
+
+            // Version info row
+            VersionInfoRow(
+                installedVersion = installedVersion,
+                latestVersion = latestVersion,
+                isCheckingVersion = isCheckingVersion,
+                onRefresh = onRefreshVersion,
+            )
 
             Spacer(Modifier.height(16.dp))
 
@@ -295,67 +322,191 @@ fun DownloadCard(
                          downloadState == DownloadState.ERROR ||
                          downloadState == DownloadState.CANCELLED
 
-            if (isIdle) {
-                // Big download button
-                FilledTonalButton(
-                    onClick = onDownload,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(52.dp),
-                    shape = RoundedCornerShape(12.dp),
-                ) {
-                    Icon(Icons.Filled.Download, contentDescription = null, modifier = Modifier.size(20.dp))
-                    Spacer(Modifier.width(8.dp))
-                    Text("Download & Update", fontWeight = FontWeight.SemiBold)
-                }
+            AnimatedContent(
+                targetState = isIdle,
+                transitionSpec = {
+                    (fadeIn(tween(200)) + slideInVertically { it / 4 })
+                        .togetherWith(fadeOut(tween(150)))
+                },
+                label = "downloadContent",
+            ) { idle ->
+                if (idle) {
+                    Column {
+                        // Download button
+                        val hasUpdate = latestVersion != null && installedVersion != null && latestVersion != installedVersion
+                        val notInstalled = installedVersion == null
 
-                // Error message
-                AnimatedVisibility(visible = downloadState == DownloadState.ERROR) {
-                    Surface(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(top = 12.dp),
-                        color = MaterialTheme.colorScheme.errorContainer,
-                        shape = RoundedCornerShape(8.dp),
-                    ) {
-                        Row(
-                            modifier = Modifier.padding(12.dp),
-                            verticalAlignment = Alignment.CenterVertically,
+                        FilledTonalButton(
+                            onClick = onDownload,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(52.dp),
+                            shape = RoundedCornerShape(12.dp),
                         ) {
-                            Icon(
-                                Icons.Filled.ErrorOutline,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.error,
-                                modifier = Modifier.size(20.dp),
-                            )
+                            Icon(Icons.Filled.Download, contentDescription = null, modifier = Modifier.size(20.dp))
                             Spacer(Modifier.width(8.dp))
                             Text(
-                                errorMessage,
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onErrorContainer,
-                                maxLines = 3,
-                                overflow = TextOverflow.Ellipsis,
+                                when {
+                                    notInstalled -> "Download & Install"
+                                    hasUpdate -> "Download Update"
+                                    else -> "Download & Reinstall"
+                                },
+                                fontWeight = FontWeight.SemiBold,
                             )
                         }
+
+                        // Error
+                        AnimatedVisibility(
+                            visible = downloadState == DownloadState.ERROR,
+                            enter = fadeIn() + expandVertically(),
+                            exit = fadeOut() + shrinkVertically(),
+                        ) {
+                            Surface(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(top = 12.dp),
+                                color = MaterialTheme.colorScheme.errorContainer,
+                                shape = RoundedCornerShape(8.dp),
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(12.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                ) {
+                                    Icon(
+                                        Icons.Filled.ErrorOutline,
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.error,
+                                        modifier = Modifier.size(20.dp),
+                                    )
+                                    Spacer(Modifier.width(8.dp))
+                                    Text(
+                                        errorMessage,
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onErrorContainer,
+                                        maxLines = 3,
+                                        overflow = TextOverflow.Ellipsis,
+                                    )
+                                }
+                            }
+                        }
                     }
+                } else {
+                    DownloadProgressSection(
+                        downloadState = downloadState,
+                        progress = progress,
+                        downloadedBytes = downloadedBytes,
+                        totalBytes = totalBytes,
+                        isInstalling = isInstalling,
+                        onPause = onPause,
+                        onResume = onResume,
+                        onCancel = onCancel,
+                        onInstall = onInstall,
+                    )
                 }
-            } else {
-                // Active download view
-                DownloadProgressSection(
-                    downloadState = downloadState,
-                    progress = progress,
-                    downloadedBytes = downloadedBytes,
-                    totalBytes = totalBytes,
-                    isInstalling = isInstalling,
-                    onPause = onPause,
-                    onResume = onResume,
-                    onCancel = onCancel,
-                    onInstall = onInstall,
+            }
+        }
+    }
+}
+
+// ─── Version Info Row ───────────────────────────────────────────────────────
+
+@Composable
+fun VersionInfoRow(
+    installedVersion: String?,
+    latestVersion: String?,
+    isCheckingVersion: Boolean,
+    onRefresh: () -> Unit,
+) {
+    // Spinning animation for the refresh icon
+    val infiniteTransition = rememberInfiniteTransition(label = "spin")
+    val spinAngle by infiniteTransition.animateFloat(
+        initialValue = 0f,
+        targetValue = 360f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(800, easing = LinearEasing),
+            repeatMode = RepeatMode.Restart,
+        ),
+        label = "spinAngle",
+    )
+
+    Surface(
+        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f),
+        shape = RoundedCornerShape(10.dp),
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            // Installed
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    "Installed",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Text(
+                    installedVersion ?: "Not installed",
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.Medium,
+                    color = if (installedVersion != null) MaterialTheme.colorScheme.onSurface
+                            else MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+
+            // Arrow
+            Icon(
+                @Suppress("DEPRECATION")
+                Icons.Filled.ArrowForward,
+                contentDescription = null,
+                modifier = Modifier.size(16.dp),
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+
+            Spacer(Modifier.width(8.dp))
+
+            // Latest
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    "Latest",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                if (isCheckingVersion) {
+                    Text(
+                        "Checking…",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                } else {
+                    Text(
+                        latestVersion ?: "Unknown",
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = FontWeight.Medium,
+                        color = MaterialTheme.colorScheme.primary,
+                    )
+                }
+            }
+
+            // Refresh button
+            IconButton(
+                onClick = onRefresh,
+                modifier = Modifier.size(32.dp),
+            ) {
+                Icon(
+                    Icons.Outlined.Refresh,
+                    contentDescription = "Refresh versions",
+                    modifier = Modifier
+                        .size(18.dp)
+                        .then(if (isCheckingVersion) Modifier.rotate(spinAngle) else Modifier),
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
         }
     }
 }
+
+// ─── Download Progress Section ──────────────────────────────────────────────
 
 @Composable
 fun DownloadProgressSection(
@@ -369,125 +520,146 @@ fun DownloadProgressSection(
     onCancel: () -> Unit,
     onInstall: () -> Unit,
 ) {
-    val animatedProgress by animateFloatAsState(
-        targetValue = progress,
-        animationSpec = tween(durationMillis = 300, easing = FastOutSlowInEasing),
-        label = "progress",
-    )
-    val percentText = "${(progress * 100).toInt()}%"
-    val dlMb = downloadedBytes / 1024 / 1024
-    val totalMb = if (totalBytes > 0) totalBytes / 1024 / 1024 else null
-    val sizeText = if (totalMb != null) "${dlMb}MB / ${totalMb}MB" else "${dlMb}MB / ?"
+    Column {
+        val animatedProgress by animateFloatAsState(
+            targetValue = progress,
+            animationSpec = tween(durationMillis = 300, easing = FastOutSlowInEasing),
+            label = "progress",
+        )
+        val percentText = "${(progress * 100).toInt()}%"
+        val dlMb = downloadedBytes / 1024 / 1024
+        val totalMb = if (totalBytes > 0) totalBytes / 1024 / 1024 else null
+        val sizeText = if (totalMb != null) "${dlMb}MB / ${totalMb}MB" else "${dlMb}MB / ?"
 
-    // Status row
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        val statusIcon = when (downloadState) {
-            DownloadState.DOWNLOADING -> Icons.Filled.Downloading
-            DownloadState.PAUSED -> Icons.Filled.Pause
-            DownloadState.FINISHED -> Icons.Filled.CheckCircle
-            else -> Icons.Filled.HourglassEmpty
+        // Pulsing alpha for the status icon while downloading
+        val infiniteTransition = rememberInfiniteTransition(label = "pulse")
+        val pulseAlpha by infiniteTransition.animateFloat(
+            initialValue = 1f,
+            targetValue = 0.4f,
+            animationSpec = infiniteRepeatable(
+                animation = tween(800, easing = FastOutSlowInEasing),
+                repeatMode = RepeatMode.Reverse,
+            ),
+            label = "pulseAlpha",
+        )
+
+        // Status row
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            val statusIcon = when (downloadState) {
+                DownloadState.DOWNLOADING -> Icons.Filled.Downloading
+                DownloadState.PAUSED -> Icons.Filled.Pause
+                DownloadState.FINISHED -> Icons.Filled.CheckCircle
+                else -> Icons.Filled.HourglassEmpty
+            }
+            val statusColor = when (downloadState) {
+                DownloadState.FINISHED -> MaterialTheme.colorScheme.primary
+                DownloadState.PAUSED -> MaterialTheme.colorScheme.tertiary
+                else -> MaterialTheme.colorScheme.onSurfaceVariant
+            }
+            val iconAlpha = if (downloadState == DownloadState.DOWNLOADING) pulseAlpha else 1f
+
+            Icon(
+                statusIcon,
+                contentDescription = null,
+                tint = statusColor.copy(alpha = iconAlpha),
+                modifier = Modifier.size(18.dp),
+            )
+            Spacer(Modifier.width(6.dp))
+            Text(
+                when (downloadState) {
+                    DownloadState.DOWNLOADING -> "Downloading…"
+                    DownloadState.PAUSED -> "Paused"
+                    DownloadState.FINISHED -> "Download complete"
+                    else -> downloadState.name
+                },
+                style = MaterialTheme.typography.labelLarge,
+                color = statusColor,
+            )
+            Spacer(Modifier.weight(1f))
+            Text(
+                percentText,
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.primary,
+            )
         }
-        val statusColor = when (downloadState) {
-            DownloadState.FINISHED -> MaterialTheme.colorScheme.primary
-            DownloadState.PAUSED -> MaterialTheme.colorScheme.tertiary
-            else -> MaterialTheme.colorScheme.onSurfaceVariant
-        }
-        Icon(statusIcon, contentDescription = null, tint = statusColor, modifier = Modifier.size(18.dp))
-        Spacer(Modifier.width(6.dp))
+
+        Spacer(Modifier.height(8.dp))
+
+        // Progress bar
+        LinearProgressIndicator(
+            progress = { animatedProgress },
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(8.dp)
+                .clip(RoundedCornerShape(4.dp)),
+            trackColor = MaterialTheme.colorScheme.surfaceVariant,
+        )
+
+        Spacer(Modifier.height(4.dp))
+
         Text(
+            sizeText,
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+
+        Spacer(Modifier.height(12.dp))
+
+        // Action buttons
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            modifier = Modifier.fillMaxWidth(),
+        ) {
             when (downloadState) {
-                DownloadState.DOWNLOADING -> "Downloading…"
-                DownloadState.PAUSED -> "Paused"
-                DownloadState.FINISHED -> "Download complete"
-                else -> downloadState.name
-            },
-            style = MaterialTheme.typography.labelLarge,
-            color = statusColor,
-        )
-        Spacer(Modifier.weight(1f))
-        Text(
-            percentText,
-            style = MaterialTheme.typography.titleMedium,
-            fontWeight = FontWeight.Bold,
-            color = MaterialTheme.colorScheme.primary,
-        )
-    }
+                DownloadState.DOWNLOADING -> {
+                    FilledTonalButton(
+                        onClick = onPause,
+                        modifier = Modifier.weight(1f),
+                        shape = RoundedCornerShape(12.dp),
+                    ) {
+                        Icon(Icons.Filled.Pause, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Spacer(Modifier.width(6.dp))
+                        Text("Pause")
+                    }
+                }
+                DownloadState.PAUSED -> {
+                    FilledTonalButton(
+                        onClick = onResume,
+                        modifier = Modifier.weight(1f),
+                        shape = RoundedCornerShape(12.dp),
+                    ) {
+                        Icon(Icons.Filled.PlayArrow, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Spacer(Modifier.width(6.dp))
+                        Text("Resume")
+                    }
+                }
+                DownloadState.FINISHED -> {
+                    Button(
+                        onClick = onInstall,
+                        modifier = Modifier.weight(1f),
+                        shape = RoundedCornerShape(12.dp),
+                        enabled = !isInstalling,
+                    ) {
+                        Icon(Icons.Filled.InstallMobile, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Spacer(Modifier.width(6.dp))
+                        Text("Install")
+                    }
+                }
+                else -> {}
+            }
 
-    Spacer(Modifier.height(8.dp))
-
-    // Progress bar
-    LinearProgressIndicator(
-        progress = { animatedProgress },
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(8.dp)
-            .clip(RoundedCornerShape(4.dp)),
-        trackColor = MaterialTheme.colorScheme.surfaceVariant,
-    )
-
-    Spacer(Modifier.height(4.dp))
-
-    Text(
-        sizeText,
-        style = MaterialTheme.typography.bodySmall,
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
-    )
-
-    Spacer(Modifier.height(12.dp))
-
-    // Action buttons
-    Row(
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-        modifier = Modifier.fillMaxWidth(),
-    ) {
-        when (downloadState) {
-            DownloadState.DOWNLOADING -> {
-                FilledTonalButton(
-                    onClick = onPause,
-                    modifier = Modifier.weight(1f),
+            if (downloadState != DownloadState.FINISHED) {
+                OutlinedButton(
+                    onClick = onCancel,
+                    modifier = if (downloadState == DownloadState.DOWNLOADING || downloadState == DownloadState.PAUSED)
+                        Modifier.weight(1f) else Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(12.dp),
                 ) {
-                    Icon(Icons.Filled.Pause, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Icon(Icons.Filled.Close, contentDescription = null, modifier = Modifier.size(18.dp))
                     Spacer(Modifier.width(6.dp))
-                    Text("Pause")
+                    Text("Cancel")
                 }
-            }
-            DownloadState.PAUSED -> {
-                FilledTonalButton(
-                    onClick = onResume,
-                    modifier = Modifier.weight(1f),
-                    shape = RoundedCornerShape(12.dp),
-                ) {
-                    Icon(Icons.Filled.PlayArrow, contentDescription = null, modifier = Modifier.size(18.dp))
-                    Spacer(Modifier.width(6.dp))
-                    Text("Resume")
-                }
-            }
-            DownloadState.FINISHED -> {
-                Button(
-                    onClick = onInstall,
-                    modifier = Modifier.weight(1f),
-                    shape = RoundedCornerShape(12.dp),
-                    enabled = !isInstalling,
-                ) {
-                    Icon(Icons.Filled.InstallMobile, contentDescription = null, modifier = Modifier.size(18.dp))
-                    Spacer(Modifier.width(6.dp))
-                    Text("Install")
-                }
-            }
-            else -> {}
-        }
-
-        if (downloadState != DownloadState.FINISHED) {
-            OutlinedButton(
-                onClick = onCancel,
-                modifier = if (downloadState == DownloadState.DOWNLOADING || downloadState == DownloadState.PAUSED)
-                    Modifier.weight(1f) else Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(12.dp),
-            ) {
-                Icon(Icons.Filled.Close, contentDescription = null, modifier = Modifier.size(18.dp))
-                Spacer(Modifier.width(6.dp))
-                Text("Cancel")
             }
         }
     }
@@ -611,5 +783,35 @@ fun InstallStatusCard(
                 color = contentColor,
             )
         }
+    }
+}
+
+// ─── Footer Credit ──────────────────────────────────────────────────────────
+
+@Composable
+fun FooterCredit() {
+    val context = LocalContext.current
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(top = 8.dp, bottom = 8.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Text(
+            "By: Kanagawa Yamada",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Spacer(Modifier.height(2.dp))
+        Text(
+            "@KanagawaYamada",
+            style = MaterialTheme.typography.labelSmall.copy(textDecoration = TextDecoration.Underline),
+            color = MaterialTheme.colorScheme.primary,
+            modifier = Modifier.clickable {
+                val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://www.youtube.com/@KanagawaYamada"))
+                context.startActivity(intent)
+            },
+        )
     }
 }
