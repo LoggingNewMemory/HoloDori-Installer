@@ -39,7 +39,7 @@ class Downloader(private val targetFile: File) {
         .followSslRedirects(true)
         .build()
 
-    fun startDownload(url: String) {
+    fun startDownload(url: String, forceRestart: Boolean = false) {
         if (_downloadState.value == DownloadState.DOWNLOADING) return
         
         _downloadState.value = DownloadState.DOWNLOADING
@@ -47,6 +47,10 @@ class Downloader(private val targetFile: File) {
 
         downloadJob = CoroutineScope(Dispatchers.IO).launch {
             try {
+                if (forceRestart && targetFile.exists()) {
+                    targetFile.delete()
+                }
+                
                 val downloadedLength = if (targetFile.exists()) targetFile.length() else 0L
                 _downloadedBytes.value = downloadedLength
 
@@ -60,6 +64,15 @@ class Downloader(private val targetFile: File) {
 
                 val response = client.newCall(requestBuilder.build()).execute()
                 
+                if (response.code == 416) {
+                    // Range not satisfiable. The file on disk might be fully downloaded already, 
+                    // or it's larger than the server file.
+                    // For safety, let's just mark it finished if we were trying to resume.
+                    _progress.value = 1f
+                    _downloadState.value = DownloadState.FINISHED
+                    return@launch
+                }
+
                 if (!response.isSuccessful) {
                     throw IOException("Unexpected code $response")
                 }

@@ -1,6 +1,5 @@
 package com.kanagawa.yamada.holodoriinstaller.ui.theme
 
-import android.app.Activity
 import android.os.Build
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme
@@ -11,26 +10,56 @@ import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.platform.LocalContext
 
-private val DarkColorScheme = darkColorScheme(
-    primary = Purple80,
-    secondary = PurpleGrey80,
-    tertiary = Pink80
+private val LightColorScheme = lightColorScheme(
+    primary = HoloPrimary,
+    onPrimary = HoloOnPrimary,
+    primaryContainer = HoloPrimaryContainer,
+    onPrimaryContainer = HoloOnPrimaryContainer,
+    secondary = HoloSecondary,
+    onSecondary = HoloOnSecondary,
+    secondaryContainer = HoloSecondaryContainer,
+    onSecondaryContainer = HoloOnSecondaryContainer,
+    tertiary = HoloTertiary,
+    onTertiary = HoloOnTertiary,
+    tertiaryContainer = HoloTertiaryContainer,
+    onTertiaryContainer = HoloOnTertiaryContainer,
+    error = HoloError,
+    onError = HoloOnError,
+    errorContainer = HoloErrorContainer,
+    onErrorContainer = HoloOnErrorContainer,
+    background = HoloBackground,
+    onBackground = HoloOnBackground,
+    surface = HoloSurface,
+    onSurface = HoloOnSurface,
+    surfaceVariant = HoloSurfaceVariant,
+    onSurfaceVariant = HoloOnSurfaceVariant,
+    outline = HoloOutline,
 )
 
-private val LightColorScheme = lightColorScheme(
-    primary = Purple40,
-    secondary = PurpleGrey40,
-    tertiary = Pink40
-
-    /* Other default colors to override
-    background = Color(0xFFFFFBFE),
-    surface = Color(0xFFFFFBFE),
-    onPrimary = Color.White,
-    onSecondary = Color.White,
-    onTertiary = Color.White,
-    onBackground = Color(0xFF1C1B1F),
-    onSurface = Color(0xFF1C1B1F),
-    */
+private val DarkColorScheme = darkColorScheme(
+    primary = HoloPrimaryDark,
+    onPrimary = HoloOnPrimaryDark,
+    primaryContainer = HoloPrimaryContainerDark,
+    onPrimaryContainer = HoloOnPrimaryContainerDark,
+    secondary = HoloSecondaryDark,
+    onSecondary = HoloOnSecondaryDark,
+    secondaryContainer = HoloSecondaryContainerDark,
+    onSecondaryContainer = HoloOnSecondaryContainerDark,
+    tertiary = HoloTertiaryDark,
+    onTertiary = HoloOnTertiaryDark,
+    tertiaryContainer = HoloTertiaryContainerDark,
+    onTertiaryContainer = HoloOnTertiaryContainerDark,
+    error = HoloError,
+    onError = HoloOnError,
+    errorContainer = HoloErrorContainer,
+    onErrorContainer = HoloOnErrorContainer,
+    background = HoloBackgroundDark,
+    onBackground = HoloOnBackgroundDark,
+    surface = HoloSurfaceDark,
+    onSurface = HoloOnSurfaceDark,
+    surfaceVariant = HoloSurfaceVariantDark,
+    onSurfaceVariant = HoloOnSurfaceVariantDark,
+    outline = HoloOutlineDark,
 )
 
 @Composable
@@ -45,7 +74,6 @@ fun HoloDoriInstallerTheme(
             val context = LocalContext.current
             if (darkTheme) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
         }
-
         darkTheme -> DarkColorScheme
         else -> LightColorScheme
     }
