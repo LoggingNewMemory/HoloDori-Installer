@@ -833,15 +833,26 @@ fun FooterCredit() {
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
-        Spacer(Modifier.height(2.dp))
-        Text(
-            "@KanagawaYamada",
-            style = MaterialTheme.typography.labelSmall.copy(textDecoration = TextDecoration.Underline),
-            color = MaterialTheme.colorScheme.primary,
-            modifier = Modifier.clickable {
-                val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://www.youtube.com/@KanagawaYamada"))
-                context.startActivity(intent)
-            },
-        )
+        Spacer(Modifier.height(4.dp))
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(16.dp),
+        ) {
+            Text(
+                "Yamada's YouTube",
+                style = MaterialTheme.typography.labelSmall.copy(textDecoration = TextDecoration.Underline),
+                color = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.clickable {
+                    context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://www.youtube.com/@KanagawaYamada")))
+                },
+            )
+            Text(
+                "GitHub Source",
+                style = MaterialTheme.typography.labelSmall.copy(textDecoration = TextDecoration.Underline),
+                color = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.clickable {
+                    context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://github.com/LoggingNewMemory/HoloDori-Installer")))
+                },
+            )
+        }
     }
 }
