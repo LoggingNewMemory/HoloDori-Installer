@@ -22,7 +22,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     private val context: Context
         get() = getApplication()
 
-    private val downloadFile = File(context.filesDir, "HoloDori.apk")
+    private val downloadFile = File(context.filesDir, "HoloDori.xapk")
     val downloader = Downloader(downloadFile)
 
     private val _installStatus = MutableStateFlow("")
@@ -52,7 +52,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     companion object {
         const val PACKAGE_NAME = "game.qualiarts.hololive.dreams.com"
-        private const val APKPURE_URL = "https://d.apkpure.com/b/APK/$PACKAGE_NAME?version=latest"
+        private const val APKPURE_URL = "https://d.apkpure.com/b/XAPK/$PACKAGE_NAME?version=latest"
     }
 
     init {
@@ -127,8 +127,8 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             val filenameParam = Regex("[?&]filename=([^&]+)").find(location)?.groupValues?.get(1)
             if (filenameParam != null) {
                 val decoded = URLDecoder.decode(filenameParam, "UTF-8")
-                // Format: "hololive Dreams_VERSION_APKPure.apk"
-                val parts = decoded.removeSuffix(".apk").split("_")
+                // Format: "hololive Dreams_VERSION_APKPure.xapk"
+                val parts = decoded.removeSuffix(".xapk").removeSuffix(".apk").split("_")
                 if (parts.size >= 2) {
                     return@withContext parts[parts.size - 2] // version is second to last
                 }
