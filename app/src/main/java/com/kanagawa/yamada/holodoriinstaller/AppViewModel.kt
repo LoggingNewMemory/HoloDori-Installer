@@ -55,10 +55,32 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         private const val APKPURE_URL = "https://d.apkpure.com/b/XAPK/$PACKAGE_NAME?version=latest"
     }
 
+    private val binderReceivedListener = Shizuku.OnBinderReceivedListener {
+        checkShizuku()
+    }
+
+    private val binderDeadListener = Shizuku.OnBinderDeadListener {
+        checkShizuku()
+    }
+
+    private val permissionListener = Shizuku.OnRequestPermissionResultListener { _, _ ->
+        checkShizuku()
+    }
+
     init {
+        Shizuku.addBinderReceivedListener(binderReceivedListener)
+        Shizuku.addBinderDeadListener(binderDeadListener)
+        Shizuku.addRequestPermissionResultListener(permissionListener)
         checkShizuku()
         checkRoot()
         refreshVersionInfo()
+    }
+
+    override fun onCleared() {
+        super.onCleared()
+        Shizuku.removeBinderReceivedListener(binderReceivedListener)
+        Shizuku.removeBinderDeadListener(binderDeadListener)
+        Shizuku.removeRequestPermissionResultListener(permissionListener)
     }
 
     fun checkShizuku() {
@@ -67,9 +89,25 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         } catch (_: Exception) {
             false
         }
+        
+        val hasPermission = try {
+            available && Shizuku.checkSelfPermission() == PackageManager.PERMISSION_GRANTED
+        } catch (_: Exception) {
+            false
+        }
+
         val previous = _shizukuAvailable.value
-        _shizukuAvailable.value = available
-        if (available && !previous) {
+        _shizukuAvailable.value = hasPermission
+        
+        if (available && !hasPermission) {
+            try {
+                Shizuku.requestPermission(0)
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
+        
+        if (hasPermission && !previous) {
             _useRoot.value = false
         }
     }
