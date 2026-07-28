@@ -32,7 +32,7 @@ Hololive Dreams is officially restricted on many devices. This list tracks "unsu
 
 | Device Codename | Device Model | Notes |
 | :--- | :--- | :--- |
-| `TECNO LH8n` | TECNO POVA 5 Pro 5G | Runs at ~40 FPS on Normal Settings. Playable. |
+| `TECNO LH8n` | TECNO POVA 5 Pro 5G | Runs at ~40 FPS on Basic Settings. Playable. |
 | `Nabu` | Xiaomi Pad 5 | Runs well at 40 FPS on Normal Settings. |
 
 ### Contribute to the List!
