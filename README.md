@@ -13,7 +13,7 @@ This installer allows you to bypass Google Play device restrictions and install 
 
 ## 📥 How to Download
 If you are new to GitHub and aren't sure how to download the app, just follow these simple steps:
-1. Go to the **[Releases](https://github.com/KanagawaYamada/HoloDori-Installer/releases/latest)** page on the right side of this repository.
+1. Go to the **[Releases](https://github.com/LoggingNewMemory/HoloDori-Installer/releases)** page on the right side of this repository.
 2. Under the **Assets** section of the latest release, tap on the apk file to download it.
 3. Once downloaded, open the APK file to install the HoloDori Installer on your device.
 
