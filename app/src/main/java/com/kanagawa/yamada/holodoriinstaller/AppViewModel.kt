@@ -62,21 +62,31 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun checkShizuku() {
-        _shizukuAvailable.value = try {
+        val available = try {
             Shizuku.pingBinder()
         } catch (_: Exception) {
             false
+        }
+        val previous = _shizukuAvailable.value
+        _shizukuAvailable.value = available
+        if (available && !previous) {
+            _useRoot.value = false
         }
     }
 
     fun checkRoot() {
         viewModelScope.launch(Dispatchers.IO) {
-            _rootAvailable.value = try {
+            val available = try {
                 val process = Runtime.getRuntime().exec(arrayOf("su", "-c", "id"))
                 val exitCode = process.waitFor()
                 exitCode == 0
             } catch (_: Exception) {
                 false
+            }
+            val previous = _rootAvailable.value
+            _rootAvailable.value = available
+            if (available && !previous && !_shizukuAvailable.value) {
+                _useRoot.value = true
             }
         }
     }
