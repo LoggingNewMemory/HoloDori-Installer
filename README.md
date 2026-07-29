@@ -36,6 +36,7 @@ Hololive Dreams is officially restricted on many devices. This list tracks "unsu
 | `Nabu` | Xiaomi Pad 5 | Runs well at ~35 FPS on Normal Settings. |
 | `Infinix X6882` | Infinix HOT 50 4G | Runs well at ~36 FPS on Normal Settings. |
 | `Infinix X6833B` | Infinix Note 30 | Runs well at ~30 FPS on Normal Settings. |
+| `Infinix X6881`  | Infinix HOT 50 Pro | Runs well at ~30 FPS on Normal Settings. |
 
 ### Contribute to the List!
 If you successfully run the game on an unlisted device, feel free to contribute via pull request! You will need:
