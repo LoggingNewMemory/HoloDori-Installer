@@ -162,10 +162,20 @@ fun MainScreen(viewModel: AppViewModel) {
             )
 
             // ── Local File Section ──
-            LocalFileCard(
-                isInstalling = isInstalling,
-                onPick = { filePickerLauncher.launch("*/*") },
-            )
+            val isDownloadIdle = downloadState == DownloadState.IDLE ||
+                    downloadState == DownloadState.ERROR ||
+                    downloadState == DownloadState.CANCELLED
+
+            AnimatedVisibility(
+                visible = isDownloadIdle,
+                enter = fadeIn() + expandVertically(),
+                exit = fadeOut() + shrinkVertically(),
+            ) {
+                LocalFileCard(
+                    isInstalling = isInstalling,
+                    onPick = { filePickerLauncher.launch("*/*") },
+                )
+            }
 
             // ── Installation Status ──
             AnimatedVisibility(
