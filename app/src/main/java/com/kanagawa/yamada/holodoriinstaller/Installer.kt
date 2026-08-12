@@ -74,8 +74,14 @@ object Installer {
     }
 
     private suspend fun installSingleApk(file: File, isRoot: Boolean, onProgress: (String) -> Unit): Boolean {
-        val cmd = "pm install -i com.android.vending -r \"${file.absolutePath}\""
-        return runCommand(cmd, isRoot, onProgress)
+        val tmpPath = "/data/local/tmp/${file.name}"
+        runCommandAndGetOutput("mv \"${file.absolutePath}\" \"$tmpPath\" && chmod 644 \"$tmpPath\"", isRoot)
+
+        val cmd = "pm install -i com.android.vending -r \"$tmpPath\""
+        val success = runCommand(cmd, isRoot, onProgress)
+
+        runCommandAndGetOutput("rm \"$tmpPath\"", isRoot)
+        return success
     }
 
     private suspend fun installSplitApks(apks: List<File>, isRoot: Boolean, onProgress: (String) -> Unit): Boolean {
@@ -84,6 +90,9 @@ object Installer {
             return false
         }
         
+        val tmpDir = "/data/local/tmp/holodori_install_${System.currentTimeMillis()}"
+        runCommandAndGetOutput("mkdir -p \"$tmpDir\"", isRoot)
+
         val totalSize = apks.sumOf { it.length() }
         val createCmd = "pm install-create -i com.android.vending -S $totalSize"
         val createOutput = runCommandAndGetOutput(createCmd, isRoot)
@@ -92,16 +101,21 @@ object Installer {
         val sessionId = sessionIdMatch?.groupValues?.get(1)
         if (sessionId == null) {
             onProgress("Failed to create install session: $createOutput")
+            runCommandAndGetOutput("rm -rf \"$tmpDir\"", isRoot)
             return false
         }
         
         for ((index, apk) in apks.withIndex()) {
             onProgress("Writing split ${index + 1}/${apks.size}...")
-            val writeCmd = "pm install-write -S ${apk.length()} $sessionId \"split_$index\" \"${apk.absolutePath}\""
+            val tmpApk = "$tmpDir/${apk.name}"
+            runCommandAndGetOutput("mv \"${apk.absolutePath}\" \"$tmpApk\" && chmod 644 \"$tmpApk\"", isRoot)
+            
+            val writeCmd = "pm install-write -S ${apk.length()} $sessionId \"split_$index\" \"$tmpApk\""
             val writeOutput = runCommandAndGetOutput(writeCmd, isRoot)
             if (!writeOutput.contains("Success", ignoreCase = true)) {
                 onProgress("Failed to write split $index: $writeOutput")
                 runCommandAndGetOutput("pm install-abandon $sessionId", isRoot)
+                runCommandAndGetOutput("rm -rf \"$tmpDir\"", isRoot)
                 return false
             }
         }
@@ -115,6 +129,7 @@ object Installer {
         } else {
             onProgress("Failed to commit: $commitOutput")
         }
+        runCommandAndGetOutput("rm -rf \"$tmpDir\"", isRoot)
         return success
     }
 
