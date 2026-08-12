@@ -8,16 +8,17 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import okhttp3.OkHttpClient
 import java.io.File
-import java.net.Inet4Address
-import java.net.InetAddress
-import java.net.URLDecoder
-import okhttp3.Dns
-import okhttp3.Request
+import androidx.work.ExistingPeriodicWorkPolicy
+import androidx.work.NetworkType
+import androidx.work.PeriodicWorkRequestBuilder
+import androidx.work.WorkManager
+import androidx.work.Constraints
+import java.util.concurrent.TimeUnit
 import rikka.shizuku.Shizuku
 
 class AppViewModel(application: Application) : AndroidViewModel(application) {
@@ -52,6 +53,11 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     private val _isCheckingVersion = MutableStateFlow(false)
     val isCheckingVersion = _isCheckingVersion.asStateFlow()
+
+    private val sharedPrefs = context.getSharedPreferences("holodori_prefs", Context.MODE_PRIVATE)
+
+    private val _isUpdateCheckEnabled = MutableStateFlow(sharedPrefs.getBoolean("update_check_enabled", false))
+    val isUpdateCheckEnabled = _isUpdateCheckEnabled.asStateFlow()
 
     companion object {
         const val PACKAGE_NAME = "game.qualiarts.hololive.dreams.com"
@@ -142,58 +148,38 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     private fun checkInstalledVersion() {
-        _installedVersion.value = try {
-            val info = context.packageManager.getPackageInfo(PACKAGE_NAME, 0)
-            info.versionName
-        } catch (_: PackageManager.NameNotFoundException) {
-            null
-        }
+        _installedVersion.value = UpdateChecker.getInstalledVersion(context)
     }
 
     private fun checkLatestVersion() {
         _isCheckingVersion.value = true
         viewModelScope.launch {
-            _latestVersion.value = fetchLatestVersionFromApkPure()
+            _latestVersion.value = UpdateChecker.fetchLatestVersionFromApkPure()
             _isCheckingVersion.value = false
         }
     }
 
-    private suspend fun fetchLatestVersionFromApkPure(): String? = withContext(Dispatchers.IO) {
-        try {
-            val client = OkHttpClient.Builder()
-                .followRedirects(false)
-                .followSslRedirects(false)
-                .dns(object : Dns {
-                    override fun lookup(hostname: String): List<InetAddress> {
-                        val addresses = Dns.SYSTEM.lookup(hostname)
-                        val ipv4 = addresses.filterIsInstance<Inet4Address>()
-                        return ipv4.ifEmpty { addresses }
-                    }
-                })
+    fun setUpdateCheckEnabled(enabled: Boolean) {
+        sharedPrefs.edit().putBoolean("update_check_enabled", enabled).apply()
+        _isUpdateCheckEnabled.value = enabled
+        
+        val workManager = WorkManager.getInstance(context)
+        if (enabled) {
+            val constraints = Constraints.Builder()
+                .setRequiredNetworkType(NetworkType.CONNECTED)
                 .build()
-
-            val request = Request.Builder()
-                .url(APKPURE_URL)
-                .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36")
-                .head()
+                
+            val workRequest = PeriodicWorkRequestBuilder<UpdateCheckWorker>(12, TimeUnit.HOURS)
+                .setConstraints(constraints)
                 .build()
-
-            val response = client.newCall(request).execute()
-            val location = response.header("Location") ?: return@withContext null
-
-            // Parse version from filename param: ...&filename=hololive+Dreams_1.0.0_APKPure.apk&...
-            val filenameParam = Regex("[?&]filename=([^&]+)").find(location)?.groupValues?.get(1)
-            if (filenameParam != null) {
-                val decoded = URLDecoder.decode(filenameParam, "UTF-8")
-                // Format: "hololive Dreams_VERSION_APKPure.xapk"
-                val parts = decoded.removeSuffix(".xapk").removeSuffix(".apk").split("_")
-                if (parts.size >= 2) {
-                    return@withContext parts[parts.size - 2] // version is second to last
-                }
-            }
-            null
-        } catch (_: Exception) {
-            null
+                
+            workManager.enqueueUniquePeriodicWork(
+                "UpdateCheckWork",
+                ExistingPeriodicWorkPolicy.UPDATE,
+                workRequest
+            )
+        } else {
+            workManager.cancelUniqueWork("UpdateCheckWork")
         }
     }
 

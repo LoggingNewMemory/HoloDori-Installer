@@ -80,6 +80,7 @@ fun MainScreen(viewModel: AppViewModel) {
     val installedVersion by viewModel.installedVersion.collectAsState()
     val latestVersion by viewModel.latestVersion.collectAsState()
     val isCheckingVersion by viewModel.isCheckingVersion.collectAsState()
+    val isUpdateCheckEnabled by viewModel.isUpdateCheckEnabled.collectAsState()
 
     // Keep screen on only while downloading or installing
     val keepOn = downloadState == DownloadState.DOWNLOADING || isInstalling
@@ -94,6 +95,14 @@ fun MainScreen(viewModel: AppViewModel) {
     ) { uri: Uri? ->
         if (uri != null) {
             viewModel.installLocalFile(uri)
+        }
+    }
+
+    val permissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { isGranted ->
+        if (isGranted) {
+            viewModel.setUpdateCheckEnabled(true)
         }
     }
 
@@ -153,7 +162,19 @@ fun MainScreen(viewModel: AppViewModel) {
                 installedVersion = installedVersion,
                 latestVersion = latestVersion,
                 isCheckingVersion = isCheckingVersion,
+                isUpdateCheckEnabled = isUpdateCheckEnabled,
                 onRefreshVersion = { viewModel.refreshVersionInfo() },
+                onToggleUpdateCheck = { enabled ->
+                    if (enabled) {
+                        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
+                            permissionLauncher.launch(android.Manifest.permission.POST_NOTIFICATIONS)
+                        } else {
+                            viewModel.setUpdateCheckEnabled(true)
+                        }
+                    } else {
+                        viewModel.setUpdateCheckEnabled(false)
+                    }
+                },
                 onDownload = { viewModel.startApkPureDownload() },
                 onPause = { viewModel.pauseDownload() },
                 onResume = { viewModel.resumeDownload() },
@@ -315,7 +336,9 @@ fun DownloadCard(
     installedVersion: String?,
     latestVersion: String?,
     isCheckingVersion: Boolean,
+    isUpdateCheckEnabled: Boolean,
     onRefreshVersion: () -> Unit,
+    onToggleUpdateCheck: (Boolean) -> Unit,
     onDownload: () -> Unit,
     onPause: () -> Unit,
     onResume: () -> Unit,
@@ -443,6 +466,28 @@ fun DownloadCard(
                         onInstall = onInstall,
                     )
                 }
+            }
+
+            Spacer(Modifier.height(16.dp))
+            HorizontalDivider(color = MaterialTheme.colorScheme.surfaceVariant)
+            Spacer(Modifier.height(16.dp))
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        "Notify if Update Available",
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.SemiBold,
+                    )
+                }
+                Switch(
+                    checked = isUpdateCheckEnabled,
+                    onCheckedChange = onToggleUpdateCheck
+                )
             }
         }
     }
