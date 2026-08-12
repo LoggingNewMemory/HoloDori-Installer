@@ -13,7 +13,7 @@ This installer allows you to bypass Google Play device restrictions and install 
 
 ## 📥 How to Download
 If you are new to GitHub and aren't sure how to download the app, just follow these simple steps:
-1. Go to the **[Releases](https://github.com/KanagawaYamada/HoloDori-Installer/releases/latest)** page on the right side of this repository.
+1. Go to the **[Releases](https://github.com/LoggingNewMemory/HoloDori-Installer/releases)** page on the right side of this repository.
 2. Under the **Assets** section of the latest release, tap on the apk file to download it.
 3. Once downloaded, open the APK file to install the HoloDori Installer on your device.
 
@@ -32,8 +32,12 @@ Hololive Dreams is officially restricted on many devices. This list tracks "unsu
 
 | Device Codename | Device Model | Notes |
 | :--- | :--- | :--- |
-| `TECNO LH8n` | TECNO POVA 5 Pro 5G | Runs at ~40 FPS on Normal Settings. Playable. |
-| `Nabu` | Xiaomi Pad 5 | Runs well at 40 FPS on Normal Settings. |
+| `TECNO LH8n` | TECNO POVA 5 Pro 5G | Runs at ~40 FPS on Basic Settings. Playable. |
+| `Nabu` | Xiaomi Pad 5 | Runs well at ~35 FPS on Normal Settings. |
+| `Infinix X6882` | Infinix HOT 50 4G | Runs well at ~36 FPS on Normal Settings. |
+| `Infinix X6833B` | Infinix Note 30 | Runs well at ~30 FPS on Normal Settings. |
+| `Infinix X6881`  | Infinix HOT 50 Pro | Runs well at ~30 FPS on Normal Settings. |
+| `bramble`  | Google Pixel 4A 5G | Run Max at 35 FPS on Normal Settings. |
 
 ### Contribute to the List!
 If you successfully run the game on an unlisted device, feel free to contribute via pull request! You will need:
