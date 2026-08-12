@@ -25,8 +25,8 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     private val downloadFile = File(context.filesDir, "HoloDori.xapk")
     val downloader = Downloader(downloadFile)
 
-    private val _installStatus = MutableStateFlow("")
-    val installStatus = _installStatus.asStateFlow()
+    private val _installLogs = MutableStateFlow<List<String>>(emptyList())
+    val installLogs = _installLogs.asStateFlow()
 
     private val _isInstalling = MutableStateFlow(false)
     val isInstalling = _isInstalling.asStateFlow()
@@ -205,7 +205,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     fun installDownloadedFile() {
         if (!downloadFile.exists()) {
-            _installStatus.value = "Downloaded file not found!"
+            _installLogs.value = listOf("Downloaded file not found!")
             return
         }
         performInstall(downloadFile = downloadFile, uri = null)
@@ -217,24 +217,24 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     private fun performInstall(downloadFile: File?, uri: Uri?) {
         _isInstalling.value = true
-        _installStatus.value = "Starting installation..."
+        _installLogs.value = listOf("Starting installation...")
         
         viewModelScope.launch {
             val isRoot = _useRoot.value
             val success = if (downloadFile != null) {
                 Installer.installFile(context, downloadFile, isRoot) { status ->
-                    _installStatus.value = status
+                    _installLogs.value = _installLogs.value + status
                 }
             } else if (uri != null) {
                 Installer.installFile(context, uri, isRoot) { status ->
-                    _installStatus.value = status
+                    _installLogs.value = _installLogs.value + status
                 }
             } else {
                 false
             }
             
             if (success) {
-                _installStatus.value = "Installation completed successfully!"
+                _installLogs.value = _installLogs.value + "Installation completed successfully!"
                 // Refresh installed version after successful install
                 checkInstalledVersion()
             }

@@ -71,7 +71,7 @@ fun MainScreen(viewModel: AppViewModel) {
     val totalBytes by viewModel.downloader.totalBytes.collectAsState()
     val errorMessage by viewModel.downloader.errorMessage.collectAsState()
 
-    val installStatus by viewModel.installStatus.collectAsState()
+    val installLogs by viewModel.installLogs.collectAsState()
     val isInstalling by viewModel.isInstalling.collectAsState()
     val useRoot by viewModel.useRoot.collectAsState()
     val shizukuAvailable by viewModel.shizukuAvailable.collectAsState()
@@ -179,12 +179,12 @@ fun MainScreen(viewModel: AppViewModel) {
 
             // ── Installation Status ──
             AnimatedVisibility(
-                visible = installStatus.isNotEmpty() || isInstalling,
+                visible = installLogs.isNotEmpty() || isInstalling,
                 enter = fadeIn() + expandVertically(),
                 exit = fadeOut() + shrinkVertically(),
             ) {
                 InstallStatusCard(
-                    installStatus = installStatus,
+                    installLogs = installLogs,
                     isInstalling = isInstalling,
                 )
             }
@@ -761,23 +761,24 @@ fun LocalFileCard(
 
 @Composable
 fun InstallStatusCard(
-    installStatus: String,
+    installLogs: List<String>,
     isInstalling: Boolean,
 ) {
-    val isSuccess = installStatus.contains("success", ignoreCase = true) ||
-                    installStatus.contains("complete", ignoreCase = true)
-    val isError = installStatus.contains("fail", ignoreCase = true) ||
-                  installStatus.contains("error", ignoreCase = true)
+    val lastLog = installLogs.lastOrNull() ?: ""
+    val isSuccess = lastLog.contains("success", ignoreCase = true) ||
+                    lastLog.contains("complete", ignoreCase = true)
+    val isError = lastLog.contains("fail", ignoreCase = true) ||
+                  lastLog.contains("error", ignoreCase = true)
 
     val containerColor = when {
         isSuccess -> MaterialTheme.colorScheme.primaryContainer
         isError -> MaterialTheme.colorScheme.errorContainer
-        else -> MaterialTheme.colorScheme.secondaryContainer
+        else -> MaterialTheme.colorScheme.surfaceVariant
     }
     val contentColor = when {
         isSuccess -> MaterialTheme.colorScheme.onPrimaryContainer
         isError -> MaterialTheme.colorScheme.onErrorContainer
-        else -> MaterialTheme.colorScheme.onSecondaryContainer
+        else -> MaterialTheme.colorScheme.onSurfaceVariant
     }
     val statusIcon = when {
         isSuccess -> Icons.Filled.CheckCircle
@@ -786,7 +787,7 @@ fun InstallStatusCard(
     }
 
     ElevatedCard(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier.fillMaxWidth().animateContentSize(),
         shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.elevatedCardColors(containerColor = containerColor),
     ) {
@@ -815,13 +816,31 @@ fun InstallStatusCard(
                 )
             }
 
-            Spacer(Modifier.height(8.dp))
+            Spacer(Modifier.height(12.dp))
 
-            Text(
-                installStatus,
-                style = MaterialTheme.typography.bodyMedium,
-                color = contentColor,
-            )
+            // Display logs in a terminal-like block
+            Surface(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(max = 200.dp),
+                shape = RoundedCornerShape(10.dp),
+                color = MaterialTheme.colorScheme.surface.copy(alpha = 0.5f)
+            ) {
+                Column(
+                    modifier = Modifier
+                        .verticalScroll(rememberScrollState())
+                        .padding(12.dp)
+                ) {
+                    installLogs.forEach { log ->
+                        Text(
+                            text = "> $log",
+                            style = MaterialTheme.typography.bodySmall.copy(fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace),
+                            color = contentColor,
+                            modifier = Modifier.padding(bottom = 2.dp)
+                        )
+                    }
+                }
+            }
         }
     }
 }
