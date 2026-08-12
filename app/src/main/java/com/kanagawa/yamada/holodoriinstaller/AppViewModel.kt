@@ -12,9 +12,12 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
-import okhttp3.Request
 import java.io.File
+import java.net.Inet4Address
+import java.net.InetAddress
 import java.net.URLDecoder
+import okhttp3.Dns
+import okhttp3.Request
 import rikka.shizuku.Shizuku
 
 class AppViewModel(application: Application) : AndroidViewModel(application) {
@@ -160,6 +163,13 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             val client = OkHttpClient.Builder()
                 .followRedirects(false)
                 .followSslRedirects(false)
+                .dns(object : Dns {
+                    override fun lookup(hostname: String): List<InetAddress> {
+                        val addresses = Dns.SYSTEM.lookup(hostname)
+                        val ipv4 = addresses.filterIsInstance<Inet4Address>()
+                        return ipv4.ifEmpty { addresses }
+                    }
+                })
                 .build()
 
             val request = Request.Builder()

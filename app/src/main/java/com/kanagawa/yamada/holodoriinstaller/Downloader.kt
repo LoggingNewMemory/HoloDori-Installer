@@ -9,6 +9,9 @@ import okhttp3.Request
 import java.io.File
 import java.io.FileOutputStream
 import java.io.IOException
+import java.net.Inet4Address
+import java.net.InetAddress
+import okhttp3.Dns
 
 enum class DownloadState {
     IDLE, DOWNLOADING, PAUSED, FINISHED, ERROR, CANCELLED
@@ -37,6 +40,13 @@ class Downloader(private val targetFile: File) {
     private val client = OkHttpClient.Builder()
         .followRedirects(true)
         .followSslRedirects(true)
+        .dns(object : Dns {
+            override fun lookup(hostname: String): List<InetAddress> {
+                val addresses = Dns.SYSTEM.lookup(hostname)
+                val ipv4 = addresses.filterIsInstance<Inet4Address>()
+                return ipv4.ifEmpty { addresses }
+            }
+        })
         .build()
 
     fun startDownload(url: String, forceRestart: Boolean = false) {
