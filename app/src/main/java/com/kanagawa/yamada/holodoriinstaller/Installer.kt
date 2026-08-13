@@ -75,7 +75,7 @@ object Installer {
 
     private suspend fun installSingleApk(file: File, isRoot: Boolean, onProgress: (String) -> Unit): Boolean {
         val tmpPath = "/data/local/tmp/${file.name}"
-        runCommandAndGetOutput("mv \"${file.absolutePath}\" \"$tmpPath\" && chmod 644 \"$tmpPath\"", isRoot)
+        runCommandAndGetOutput("cp \"${file.absolutePath}\" \"$tmpPath\" && chmod 644 \"$tmpPath\"", isRoot)
 
         val cmd = "pm install -i com.android.vending -r \"$tmpPath\""
         val success = runCommand(cmd, isRoot, onProgress)
@@ -91,7 +91,7 @@ object Installer {
         }
         
         val tmpDir = "/data/local/tmp/holodori_install_${System.currentTimeMillis()}"
-        runCommandAndGetOutput("mkdir -p \"$tmpDir\"", isRoot)
+        runCommandAndGetOutput("mkdir -p \"$tmpDir\" && chmod 777 \"$tmpDir\"", isRoot)
 
         val totalSize = apks.sumOf { it.length() }
         val createCmd = "pm install-create -i com.android.vending -S $totalSize"
@@ -108,7 +108,7 @@ object Installer {
         for ((index, apk) in apks.withIndex()) {
             onProgress("Writing split ${index + 1}/${apks.size}...")
             val tmpApk = "$tmpDir/${apk.name}"
-            runCommandAndGetOutput("mv \"${apk.absolutePath}\" \"$tmpApk\" && chmod 644 \"$tmpApk\"", isRoot)
+            runCommandAndGetOutput("cp \"${apk.absolutePath}\" \"$tmpApk\" && chmod 644 \"$tmpApk\"", isRoot)
             
             val writeCmd = "pm install-write -S ${apk.length()} $sessionId \"split_$index\" \"$tmpApk\""
             val writeOutput = runCommandAndGetOutput(writeCmd, isRoot)
