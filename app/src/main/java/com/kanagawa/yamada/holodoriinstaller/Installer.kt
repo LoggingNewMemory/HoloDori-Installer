@@ -75,7 +75,10 @@ object Installer {
 
     private suspend fun installSingleApk(file: File, isRoot: Boolean, onProgress: (String) -> Unit): Boolean {
         val tmpPath = "/data/local/tmp/${file.name}"
-        runCommandAndGetOutput("cp \"${file.absolutePath}\" \"$tmpPath\" && chmod 644 \"$tmpPath\"", isRoot)
+        if (!copyFileToTmp(file, tmpPath, isRoot)) {
+            onProgress("Failed to copy APK to temporary directory")
+            return false
+        }
 
         val cmd = "pm install -i com.android.vending -r \"$tmpPath\""
         val success = runCommand(cmd, isRoot, onProgress)
@@ -108,7 +111,12 @@ object Installer {
         for ((index, apk) in apks.withIndex()) {
             onProgress("Writing split ${index + 1}/${apks.size}...")
             val tmpApk = "$tmpDir/${apk.name}"
-            runCommandAndGetOutput("cp \"${apk.absolutePath}\" \"$tmpApk\" && chmod 644 \"$tmpApk\"", isRoot)
+            if (!copyFileToTmp(apk, tmpApk, isRoot)) {
+                onProgress("Failed to copy split $index to temporary directory")
+                runCommandAndGetOutput("pm install-abandon $sessionId", isRoot)
+                runCommandAndGetOutput("rm -rf \"$tmpDir\"", isRoot)
+                return false
+            }
             
             val writeCmd = "pm install-write -S ${apk.length()} $sessionId \"split_$index\" \"$tmpApk\""
             val writeOutput = runCommandAndGetOutput(writeCmd, isRoot)
@@ -161,5 +169,30 @@ object Installer {
             onProgress("Installation failed: $output")
         }
         return success
+    }
+
+    private fun copyFileToTmp(file: File, tmpPath: String, isRoot: Boolean): Boolean {
+        return try {
+            val cmd = "cat > \"$tmpPath\" && chmod 644 \"$tmpPath\""
+            val process = if (isRoot) {
+                Runtime.getRuntime().exec(arrayOf("su", "-c", cmd))
+            } else {
+                val method = Shizuku::class.java.getDeclaredMethod("newProcess", Array<String>::class.java, Array<String>::class.java, String::class.java)
+                method.isAccessible = true
+                method.invoke(null, arrayOf("sh", "-c", cmd), null, null) as Process
+            }
+            
+            file.inputStream().use { input ->
+                process.outputStream.use { output ->
+                    input.copyTo(output)
+                }
+            }
+            
+            process.waitFor()
+            process.exitValue() == 0
+        } catch (e: Exception) {
+            e.printStackTrace()
+            false
+        }
     }
 }
